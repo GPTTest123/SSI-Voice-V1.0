@@ -1,7 +1,7 @@
 const express = require('express');
 const app = express();
 const path = require('path');
-require('dotenv').config();
+require('dotenv').config(); // Load environment variables from .env file
 
 app.use(express.static(path.join(__dirname, 'public')));
 
