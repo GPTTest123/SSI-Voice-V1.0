@@ -30,6 +30,7 @@
             })
             .catch(error => {
                 console.error('Error fetching API key:', error);
+                alert(`Error fetching API key: ${error.message}`);
             });
 
         function initializeApp() {
@@ -235,3 +236,4 @@
     </script>
 </body>
 </html>
+
