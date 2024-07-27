@@ -5,7 +5,11 @@ require('dotenv').config();
 app.use(express.static('public'));
 
 app.get('/api-key', (req, res) => {
-  res.json({ apiKey: process.env.OPENAI_API_KEY });
+  if (process.env.OPENAI_API_KEY) {
+    res.json({ apiKey: process.env.OPENAI_API_KEY });
+  } else {
+    res.status(404).json({ error: 'API key not found' });
+  }
 });
 
 const PORT = process.env.PORT || 3000;
