@@ -1,7 +1,9 @@
 const express = require('express');
 const app = express();
+const path = require('path');
+require('dotenv').config();
 
-app.use(express.static('public'));
+app.use(express.static(path.join(__dirname, 'public')));
 
 app.get('/api-key', (req, res) => {
     const apiKey = process.env.OPENAI_API_KEY;
