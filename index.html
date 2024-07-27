@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Audio Transcription and GPT-4 Response</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 min-h-screen flex flex-col items-center justify-center p-4">
+    <h1 class="text-4xl font-bold mb-6 text-gray-800">Gustav</h1>
+    <button id="recordButton" class="bg-blue-500 text-white font-bold py-2 px-4 rounded mb-6 hover:bg-blue-700 transition duration-300">Record</button>
+    <p style="display: none;" id="transcription" class="text-lg mb-4 text-gray-700 bg-white p-4 rounded shadow w-full max-w-2xl">Transcribed text will appear here...</p>
+    <p style="display: none;" id="gptResponse" class="text-lg text-gray-700 bg-white p-4 rounded shadow w-full max-w-2xl">GPT-4 response will appear here...</p>
+    <audio id="audioPlayback" controls style="display: none;"></audio>
+
+    <script>
+        let API_KEY = 'sk-proj-SMYvjUgks0sNJsnr2xodT3BlbkFJrRlMwaxxVTS9WLTxsrUp';
+
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            alert('Your browser does not support audio recording.');
+            throw new Error('Your browser does not support audio recording.');
+        }
+
+        const recordButton = document.getElementById('recordButton');
+        const transcriptionParagraph = document.getElementById('transcription');
+        const gptResponseParagraph = document.getElementById('gptResponse');
+        const audioPlayback = document.getElementById('audioPlayback');
+
+        let mediaRecorder;
+        let audioChunks = [];
+        let silenceTimeout;
+
+        recordButton.addEventListener('click', () => {
+            if (mediaRecorder && mediaRecorder.state === 'recording') {
+                mediaRecorder.stop();
+                recordButton.textContent = 'Record';
+                recordButton.style.backgroundColor = 'blue';
+            } else {
+                startRecording();
+                recordButton.textContent = 'Stop';
+                recordButton.style.backgroundColor = 'green';
+            }
+        });
+
+        function startRecording() {
+            navigator.mediaDevices.getUserMedia({ audio: true })
+                .then(stream => {
+                    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                    const source = audioContext.createMediaStreamSource(stream);
+                    const analyser = audioContext.createAnalyser();
+                    source.connect(analyser);
+                    analyser.fftSize = 2048;
+                    const bufferLength = analyser.fftSize;
+                    const dataArray = new Uint8Array(bufferLength);
+
+                    mediaRecorder = new MediaRecorder(stream);
+                    mediaRecorder.ondataavailable = event => {
+                        audioChunks.push(event.data);
+                    };
+                    mediaRecorder.onstop = () => {
+                        const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+                        audioChunks = [];
+                        transcribeAudio(audioBlob);
+                    };
+                    mediaRecorder.start();
+
+                    function checkSilence() {
+                        analyser.getByteTimeDomainData(dataArray);
+                        let silenceDetected = true;
+                        for (let i = 0; i < bufferLength; i++) {
+                            if (dataArray[i] > 128 + 2 || dataArray[i] < 128 - 2) {
+                                silenceDetected = false;
+                                break;
+                            }
+                        }
+                        if (silenceDetected) {
+                            if (!silenceTimeout) {
+                                silenceTimeout = setTimeout(() => {
+                                    if (mediaRecorder.state === 'recording') {
+                                        mediaRecorder.stop();
+                                        recordButton.textContent = 'Record';
+                                        recordButton.style.backgroundColor = 'blue';
+                                    }
+                                }, 1200);
+                            }
+                        } else {
+                            if (silenceTimeout) {
+                                clearTimeout(silenceTimeout);
+                                silenceTimeout = null;
+                            }
+                        }
+                        if (mediaRecorder.state === 'recording') {
+                            requestAnimationFrame(checkSilence);
+                        }
+                    }
+
+                    checkSilence();
+                })
+                .catch(error => {
+                    console.error('Error starting recording', error);
+                });
+        }
+
+        function transcribeAudio(audioBlob) {
+            const formData = new FormData();
+            formData.append('file', audioBlob);
+            formData.append('model', 'whisper-1');
+
+            fetch('https://api.openai.com/v1/audio/transcriptions', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${API_KEY}`
+                },
+                body: formData
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.text) {
+                    transcriptionParagraph.textContent = data.text;
+                    transcriptionParagraph.style.display = 'block';
+                    sendToGPT(data.text);
+                } else {
+                    transcriptionParagraph.textContent = 'Transcription failed. Please try again.';
+                    transcriptionParagraph.style.display = 'block';
+                }
+            })
+            .catch(error => {
+                console.error('Error during transcription', error);
+                transcriptionParagraph.textContent = `Error during transcription: ${error.message}`;
+                transcriptionParagraph.style.display = 'block';
+            });
+        }
+
+        var messages = [
+            {"role": "system", "content": "Du bist ein chilliger Freund, so ca. 23 Jahre alt und kiffst gerne. Du antwortest immer kurz und knapp und redest ständig über Gras rauchen. Dein Name ist Gustav!"},
+        ];
+
+        function sendToGPT(transcribedText) {
+            messages.push({"role": "user", "content": transcribedText});
+
+            fetch('https://api.openai.com/v1/chat/completions', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${API_KEY}`
+                },
+                body: JSON.stringify({
+                    model: 'gpt-4', 
+                    messages: messages,
+                    max_tokens: 150
+                })
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.choices && data.choices.length > 0) {
+                    const gptText = data.choices[0].message.content;
+                    messages.push({"role": "assistant", "content": gptText});
+                    gptResponseParagraph.textContent = gptText;
+                    gptResponseParagraph.style.display = 'block';
+                    generateSpeech(gptText);
+                } else {
+                    gptResponseParagraph.textContent = 'GPT-4 response failed. Please try again.';
+                    gptResponseParagraph.style.display = 'block';
+                }
+            })
+            .catch(error => {
+                console.error('Error during GPT-4 request', error);
+                gptResponseParagraph.textContent = `Error during GPT-4 request: ${error.message}`;
+                gptResponseParagraph.style.display = 'block';
+            });
+        }
+
+        function generateSpeech(text) {
+            fetch('https://api.openai.com/v1/audio/speech', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${API_KEY}`
+                },
+                body: JSON.stringify({
+                    model: 'tts-1',
+                    voice: 'onyx', // You can choose any available voice
+                    input: text
+                })
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return response.blob();
+            })
+            .then(audioBlob => {
+                const audioUrl = URL.createObjectURL(audioBlob);
+                audioPlayback.src = audioUrl;
+                audioPlayback.style.display = 'block';
+                audioPlayback.play();
+            })
+            .catch(error => {
+                console.error('Error during TTS request', error);
+                alert(`Error during TTS request: ${error.message}`);
+            });
+        }
+
+        audioPlayback.addEventListener('ended', function() {
+            recordButton.click();
+        });
+    </script>
+</body>
+</html>
