@@ -18,7 +18,12 @@
 
         // API Key vom Server holen
         fetch('/api-key')
-            .then(response => response.json())
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return response.json();
+            })
             .then(data => {
                 API_KEY = data.apiKey;
                 initializeApp();
@@ -162,7 +167,7 @@
                         'Authorization': `Bearer ${API_KEY}`
                     },
                     body: JSON.stringify({
-                        model: 'gpt-4', 
+                        model: 'gpt-4',
                         messages: messages,
                         max_tokens: 150
                     })
@@ -201,7 +206,7 @@
                     },
                     body: JSON.stringify({
                         model: 'tts-1',
-                        voice: 'onyx', // You can choose any available voice
+                        voice: 'onyx',
                         input: text
                     })
                 })
