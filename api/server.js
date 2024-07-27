@@ -1,9 +1,9 @@
 const express = require('express');
 const app = express();
 const path = require('path');
-require('dotenv').config(); // Load environment variables from .env file
+require('dotenv').config();
 
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(path.join(__dirname, '../public')));
 
 app.get('/api-key', (req, res) => {
     const apiKey = process.env.OPENAI_API_KEY;
@@ -14,7 +14,8 @@ app.get('/api-key', (req, res) => {
     }
 });
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
+app.listen(3000, () => {
+    console.log(`Server running on port 3000`);
 });
+
+module.exports = app;
